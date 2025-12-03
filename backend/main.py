@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
@@ -8,9 +8,22 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 import httpx
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Logging setup
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("logs/app.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Config
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://uklatcuqwynnqszxfegz.supabase.co")
@@ -132,9 +145,11 @@ async def supabase_request(method: str, endpoint: str, data: dict = None, params
 
 @app.post("/api/auth/signup")
 async def signup(user: UserSignup):
+    logger.info(f"Signup attempt for email: {user.email}")
     # Check if user exists
     existing = await supabase_request("GET", "users", params={"email": f"eq.{user.email}", "select": "id"})
     if existing:
+        logger.warning(f"Signup failed - email already exists: {user.email}")
         raise HTTPException(status_code=400, detail="Email already registered")
     
     # Create user
@@ -146,11 +161,13 @@ async def signup(user: UserSignup):
     })
     
     if not new_user:
+        logger.error(f"Signup failed - database error for: {user.email}")
         raise HTTPException(status_code=500, detail="Failed to create user")
     
     user_data = new_user[0]
     token = create_token(user_data["id"])
     
+    logger.info(f"Signup successful for: {user.email} (id: {user_data['id']})")
     return {
         "token": token,
         "user": {
@@ -163,17 +180,21 @@ async def signup(user: UserSignup):
 
 @app.post("/api/auth/login")
 async def login(credentials: UserLogin):
+    logger.info(f"Login attempt for email: {credentials.email}")
     # Find user
     users = await supabase_request("GET", "users", params={"email": f"eq.{credentials.email}", "select": "*"})
     if not users:
+        logger.warning(f"Login failed - user not found: {credentials.email}")
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     user = users[0]
     if not verify_password(credentials.password, user["password_hash"]):
+        logger.warning(f"Login failed - wrong password: {credentials.email}")
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     token = create_token(user["id"])
     
+    logger.info(f"Login successful for: {credentials.email} (id: {user['id']})")
     return {
         "token": token,
         "user": {
@@ -214,6 +235,7 @@ async def get_tasks(
 
 @app.post("/api/tasks")
 async def create_task(task: TaskCreate, user_id: str = Depends(verify_token)):
+    logger.info(f"Creating task for user: {user_id} - title: {task.title}")
     task_data = {
         "user_id": user_id,
         "title": task.title,
@@ -225,8 +247,10 @@ async def create_task(task: TaskCreate, user_id: str = Depends(verify_token)):
     
     new_task = await supabase_request("POST", "tasks", data=task_data)
     if not new_task:
+        logger.error(f"Failed to create task for user: {user_id}")
         raise HTTPException(status_code=500, detail="Failed to create task")
     
+    logger.info(f"Task created: {new_task[0]['id']} for user: {user_id}")
     return new_task[0]
 
 @app.get("/api/tasks/{task_id}")
@@ -242,6 +266,7 @@ async def get_task(task_id: str, user_id: str = Depends(verify_token)):
 
 @app.patch("/api/tasks/{task_id}")
 async def update_task(task_id: str, task: TaskUpdate, user_id: str = Depends(verify_token)):
+    logger.info(f"Updating task: {task_id} for user: {user_id}")
     update_data = {k: v for k, v in task.dict().items() if v is not None}
     update_data["updated_at"] = datetime.utcnow().isoformat()
     
@@ -257,16 +282,20 @@ async def update_task(task_id: str, task: TaskUpdate, user_id: str = Depends(ver
     })
     
     if not updated:
+        logger.warning(f"Task not found: {task_id} for user: {user_id}")
         raise HTTPException(status_code=404, detail="Task not found")
     
+    logger.info(f"Task updated: {task_id}")
     return updated[0]
 
 @app.delete("/api/tasks/{task_id}")
 async def delete_task(task_id: str, user_id: str = Depends(verify_token)):
+    logger.info(f"Deleting task: {task_id} for user: {user_id}")
     await supabase_request("DELETE", "tasks", params={
         "id": f"eq.{task_id}",
         "user_id": f"eq.{user_id}"
     })
+    logger.info(f"Task deleted: {task_id}")
     return {"message": "Task deleted"}
 
 # ==================== ANALYTICS ROUTES ====================

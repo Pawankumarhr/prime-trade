@@ -5,17 +5,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-// Floating Orbs Background
-const FloatingOrbs = () => (
-  <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-    <div className="floating-orb w-96 h-96 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full blur-3xl absolute -top-48 -left-48 animate-float"></div>
-    <div className="floating-orb w-80 h-80 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl absolute top-1/3 -right-40 animate-float-delayed"></div>
-    <div className="floating-orb w-64 h-64 bg-gradient-to-r from-emerald-500/15 to-teal-500/15 rounded-full blur-3xl absolute bottom-20 left-1/4 animate-float"></div>
-  </div>
-);
-
 export default function Login() {
-  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -24,30 +16,53 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!email || !password) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    if (!email.includes('@')) {
+      setError('Please enter a valid email');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await login(formData.email, formData.password);
-      router.push('/dashboard');
+      const result = await login(email, password);
+      if (result.success) {
+        router.push('/dashboard');
+      } else {
+        setError(result.error || 'Invalid email or password');
+      }
     } catch (err) {
-      setError(err.message || 'Login failed. Please try again.');
+      setError('Connection error. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative">
-      <FloatingOrbs />
-      
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Floating Orbs */}
+      <div className="floating-orb w-96 h-96 bg-gradient-to-r from-purple-500/20 to-pink-500/20 -top-48 -left-48 animate-float"></div>
+      <div className="floating-orb w-80 h-80 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 top-1/3 -right-40 animate-float-delayed"></div>
+      <div className="floating-orb w-64 h-64 bg-gradient-to-r from-emerald-500/15 to-teal-500/15 bottom-20 left-1/4 animate-float"></div>
+
       <div className="w-full max-w-md relative z-10">
-        {/* Logo/Brand */}
+        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/25">
-            <span className="text-4xl">✨</span>
+          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/25">
+            <span className="text-3xl">✨</span>
           </div>
           <h1 className="text-3xl font-bold text-white">Welcome Back</h1>
-          <p className="text-gray-400 mt-2">Sign in to continue to PrimeTrade</p>
+          <p className="text-gray-400 mt-2">Sign in to your account</p>
         </div>
 
         {/* Login Card */}
@@ -65,42 +80,32 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
-              <div className="relative">
-                <svg className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                </svg>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="input-field pl-10"
-                  placeholder="you@example.com"
-                  required
-                />
-              </div>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="input-field"
+                placeholder="you@example.com"
+                required
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
-              <div className="relative">
-                <svg className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="input-field pl-10"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input-field"
+                placeholder="••••••••"
+                required
+              />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-3 text-lg font-semibold"
+              className="btn-primary w-full py-3 text-lg"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -110,31 +115,17 @@ export default function Login() {
                   </svg>
                   Signing in...
                 </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  Sign In
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </span>
-              )}
+              ) : 'Sign In'}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-gray-400">
-              Don't have an account?{' '}
-              <Link href="/signup" className="text-purple-400 hover:text-purple-300 font-medium transition-colors">
-                Sign up
-              </Link>
-            </p>
-          </div>
+          <p className="text-center text-gray-400 mt-6">
+            Don't have an account?{' '}
+            <Link href="/signup" className="text-purple-400 hover:text-purple-300 font-medium transition-colors">
+              Sign up
+            </Link>
+          </p>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-gray-500 text-sm mt-8">
-          © 2024 PrimeTrade. Built with 💜
-        </p>
       </div>
     </div>
   );
